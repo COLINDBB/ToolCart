@@ -1,76 +1,120 @@
+
+
+// AUTONOMOUS TOOLCART CAPSTONE PROJECT
+
+// 10/22/2017
+
+// RPM Control System 
+
+// Objective: 	Given a step rpm input, ensure motor output rpm 
+// 							reaches specified value with minimum steady state 
+//							error. 
+
+// Approach 1: 	Count the number of ticks in a set amount of time. 
+//							Dt is determined by the clock setting (CSxx). 
+// 						
+
+
+
 #define BIT(a) (1<<(a))
+
 const double max_volt = 0.5;
 
 
-
-
-// Approach 1: 
-// Count the number of ticks in a set amount of time. 
-// Dt is determined by the clock setting (CSxx). 
-//
-
-
-int l_enc = 2; // pin INT0
-int r_enc = 3; // pin INT1
+// Pins for right motor
 
 int r_mot = 10;
 int r_d1 = 8; 
 int r_d2 = 6;
+
+
+// Pins for left motor
+
 int l_mot = 9; 
 int l_d1 = 4; 
 int l_d2 = 5; 
 
 
-// Control system variables
+// Encoder info
 
-volatile bool cs_start = false; 
-int cs_iter = 5; // count the number of ticks over a number of loops (# = cs_iter) to increase resolution of rpm. 
-double cs_dt = 0.016384; 
-volatile double dt = cs_dt*cs_iter; // cs_dt*cs_iter gives the period over which the ticks were counteds
-volatile int waste = 0;
-volatile int iter_count = 0;
-int u_r,e_r;
-double kp = 1;
-
-
-volatile int r_ticks = 0;
-volatile int l_ticks = 0;
 double ticks_rev_r = 235;
 double ticks_rev_l = 235;
+int l_enc = 2; // pin INT0
+int r_enc = 3; // pin INT1
+
+
+
+// CONTROL SYSTEM VARIABLES //
+
+// cs_start is set to true in the timer compare function 
+// (controls timing of control system). 
+volatile bool cs_start = false; 
+volatile int waste = 0;
+
+int ms_per_cmp = 16; //16ms per compare match interrupt generated (depends on clock)
+int n_cmp = 6; //
+int dt = ms_per_cmp*n_cmp;
+int cmp_count = 0;
+
+int e_r,u_r; //error and command control signal, respectively
+double kp = 1; //proportional control gain
+
 double r_rpm; 
 double l_rpm; 
+volatile int r_ticks = 0;
+volatile int l_ticks = 0;
+
+
 
 
 void setup() {
   
+	// Configure hardware pins. 
+	// to do: conceal this in function  
+	
   pinMode(r_mot,OUTPUT);
   pinMode(r_d1,OUTPUT);
   pinMode(r_d2,OUTPUT);
-  pinMode(l_mot,OUTPUT);
+  pinMode(r_enc,INPUT);   
+	pinMode(l_mot,OUTPUT);
   pinMode(l_d1,OUTPUT);
   pinMode(l_d2,OUTPUT);
   pinMode(l_enc,INPUT);
-  pinMode(r_enc,INPUT);
 
-  
   set_direction(0);
 
-  TCCR2A = 0; //set timer2 to default
-  TCCR2B = 0; // same
-  TIMSK2 = BIT(TOIE2); // enable overflow interrupt
-  TCCR2B = BIT(CS22) | BIT(CS21)|BIT(CS20); // 61.04hz overflow.  
-
+	
+	// SET TIMER REGISTERS 
+	
+	// Combination of timer clock prescalar and output compare interrupt 
+	// at 250 ticks means that output compare interrupt vector happens 
+	// every 16ms. 
+	
+  TCCR2A = 0;
+  TCCR2B = 0;  
+	TCCR2B = BIT(CS22) | BIT(CS21) | BIT(CS20); // 1024 prescalar. Compare match at 250ticks = 16ms
+	TIMSK2 = BIT(OCIE2A); // enable compare match interrupt. (Output Compare Interrupt Enable)
+	OCR2A = 250; // match compare value
+  
+	
+	// Set external interrupt registers
+	
   EIMSK = 0;
   EIMSK = BIT(INT0) | BIT(INT1); //enable interrupts on puns 2 and 3
-  EICRA = BIT(ISC11) | BIT(ISC10) | BIT(ISC01)| BIT(ISC00);  
+  EICRA = BIT(ISC11) | BIT(ISC10) | BIT(ISC01)| BIT(ISC00); 
+
+	// To do: Incorporate Serial Communication	
   Serial.begin(9600);
  }
 
+ 
+ 
+ 
 void loop() {
 	
   while(!cs_start){waste++;} 
   
-	//every 16ms, cs_start is set to true in the overflow function and the loop begins.    
+	   
   
   // HERE'S THE MEAT AND BONES...control system:
 
@@ -104,7 +148,7 @@ void loop() {
 	
   // 5. Write actuators (CONTROL SIGNAL); 
   analogWrite(r_mot,u_r);
-  analogWrite(l_mot,0);
+  analogWrite(l_mot,100);
 
   
   // 5. Housekeeping.
