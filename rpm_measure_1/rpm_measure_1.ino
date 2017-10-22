@@ -1,18 +1,16 @@
-
-
 // AUTONOMOUS TOOLCART CAPSTONE PROJECT
 
 // 10/22/2017
 
-// RPM Control System 
-
-// Objective: 	Given a step rpm input, ensure motor output rpm 
-// 							reaches specified value with minimum steady state 
-//							error. 
-
-// Approach 1: 	Count the number of ticks in a set amount of time. 
-//							Dt is determined by the clock setting (CSxx). 
-// 						
+// Objective:
+//							Accurately measure the angular velocity
+//							of the two motors. Measure error between
+//							calculated rpm and rpm measured with 
+//							laser tachometer. 
+//
+// 							Approach 1: 
+//							Count the number of ticks within a certain 
+//							period of time. 
 
 
 
@@ -56,31 +54,16 @@ int ms_per_cmp = 16; //16ms per compare match interrupt generated (depends on cl
 int n_cmp = 6; //
 double dt = ms_per_cmp*n_cmp*.001;
 int cmp_count = 0;
-
 double v_lin = 0;
 double ratio = 1;
-
-int e_r,u_r,e_l,u_l; //error and command control signal, respectively
-double kp = 2; //proportional control gain
-
 double r_rpm; 
 double l_rpm; 
 volatile int r_ticks = 0;
 volatile int l_ticks = 0;
 
 
-// TESTING VARIABLES 
- 	int delay_s;
-	int target;
-	int iter;
-	int targit;
-
-
 void setup() {
   
-	// Configure hardware pins. 
-	// to do: conceal this in function  
-	
   pinMode(r_mot,OUTPUT);
   pinMode(r_d1,OUTPUT);
   pinMode(r_d2,OUTPUT);
@@ -89,12 +72,9 @@ void setup() {
   pinMode(l_d1,OUTPUT);
   pinMode(l_d2,OUTPUT);
   pinMode(l_enc,INPUT);
-
   set_direction(0);
-
 	
 	// SET TIMER REGISTERS 
-	
 	// Combination of timer clock prescalar and output compare interrupt 
 	// at 250 ticks means that output compare interrupt vector happens 
 	// every 16ms. 
@@ -112,22 +92,11 @@ void setup() {
   EIMSK = BIT(INT0) | BIT(INT1); //enable interrupts on puns 2 and 3
   EICRA = BIT(ISC11) | BIT(ISC10) | BIT(ISC01)| BIT(ISC00); 
 
-	// To do: Incorporate Serial Communication	
+
   Serial.begin(9600);
+	Serial.setTimeout(1);
 	
 	
-	
-	
-	
-	
-	// Test variables. 
-	kp = 3;
-	n_cmp = 1;
-	dt = ms_per_cmp*n_cmp*.001;
-	delay_s = 4;
-	target = 150;
-	targit = delay_s/dt;
-	iter = 0;
 	
  }
 
@@ -136,105 +105,35 @@ void loop() {
 	
 	
   while(!cs_start){waste++;} 
-  
-
-// CONTROL LOOP BEGINS HERE (EVERY dt = n_cmp*ms_per_cmp MILLISECONDS)						
 	
+//							1. Take inputs from serial monitor. 
 
 
+	if(Serial.available()>0){
+		v_lin =  Serial.parseInt();
+	}	
 	
-// 1. RECEIVE COMMAND (INPUT)
-// 							todo: add dan's code for joystick. 
-// 							in future: commands from computer. 
-// 							incorporate kinematic equations (rpm_r and l based on R and Vlin)
-//							  
-//
-//							a. Hard-coded step inputs. kicks in after "targit" seconds
-	iter++; 
-	if(iter == targit) v_lin = target; 
-	//if(iter == 4*targit) v_lin = target*2;
-	//if(iter == 8*targit) v_lin = target*3;
+	if((v_lin<0) || (v_lin>200)){
+		analogWrite(r_mot,200);
+		analogWrite(l_mot,200);
+	}
+	analogWrite(r_mot,v_lin);
+	analogWrite(l_mot,v_lin);
 
-	
-//							b. Inputs from the serial monitor. 
-
-	//if(Serial.available()){
-	//	v_lin = Serial.parseInt();
-	//}	
-
-
-//							c. Constant inputs. 	
-
-	//ratio = 1;  // Left and right motors go at same speed
-	//v_lin = 250;  // Desired linear velocity. 
-	//r_rpm_target = ; 
-	//l_rpm_target = ;
-  
 	
 	
 	
-// 2. READ SENSOR (OUTPUT)
-
   r_rpm = 60*(r_ticks/ticks_rev_r) / dt;
   l_rpm = 60*(l_ticks/ticks_rev_l) / dt;
 	r_ticks = 0; //reset tick counts
 	l_ticks = 0;
 	
-// 3. COMPUTE ERROR SIGNAL (E = INPUT - OUTPUT)
-
-	e_r = (v_lin - r_rpm);
-	e_l = (v_lin - l_rpm);
-	
-	
-	
-// 4. COMPUTE CONTROL SIGNAL (U)
-//							todo: saturate the inputs
-//							todo: make sure negatives dont go through
-//							but incorporate in future
-//							todo: determine the controller (lol) 
-//							current controller = proportional control (kp);
-
-  if(e_r < 0 ){		
-		set_direction(3); //reverse motor
-		e_r = 0; //don't reverse the motors. 
-	}
-	else set_direction(0);
-	
-	u_r = kp*abs(e_r);
-	
-	if(u_r > 255) u_r = 255; //saturation inputs
-	
-	
-	
-	
-// 5. WRITE ACTUATORS WITH CONTROL SIGNAL
-//							 
-	
-  analogWrite(r_mot,u_r);
-  analogWrite(l_mot,0);
-
-  
-// 6. MISCELLANEOUS 
-	
-	//Serial.print(u_r);
-  //Serial.print("  ");
+	Serial.print(l_rpm);
+	Serial.print(" ");
   Serial.println(r_rpm);
-
-  
-  
+	
 	cs_start = false; 
 }
-
-
-
-
-
-
-
-
-
-
-
 
 
 ISR(INT0_vect){
