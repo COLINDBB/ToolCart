@@ -1,0 +1,46 @@
+Pin Configuration: (October 21)
+
+
+Pin		SIDE 		DESCRIPTION		
+
+D1	
+
+D2		R			encoder 1 		
+
+D3		L			encoder 1  		
+
+D4		R			direction 2 	
+
+D5		R			direction 1 	
+
+D6		L			direction 1
+
+D7		
+	
+D8		L			direction 2
+	
+D9		L 			motor PWM		
+	
+D10		R			motor PWM		
+	
+D11
+	
+D12
+
+A0	
+	
+A1					pot x-axis
+	
+A2					pot y-axis
+	
+A3
+
+A4
+
+A5
+
+A6
+
+A7
+
+A8
