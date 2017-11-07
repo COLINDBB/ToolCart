@@ -125,16 +125,6 @@ void setup() {
 	// To do: Incorporate Serial Communication	
   
   Serial.begin(9600);
-	
-	
-	// Test variables: 
- 
-	kp = 3;
-
-
-
-
-	
  }
 
  
