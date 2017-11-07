@@ -35,8 +35,8 @@ int l_d2 = 5;
 
 // Encoder info
 
-double ticks_rev_r = 235;
-double ticks_rev_l = 235;
+double ticks_rev_r = 240;
+double ticks_rev_l = 240;
 int l_enc = 2; // pin INT0
 int r_enc = 3; // pin INT1
 
@@ -67,11 +67,11 @@ void setup() {
   pinMode(r_mot,OUTPUT);
   pinMode(r_d1,OUTPUT);
   pinMode(r_d2,OUTPUT);
-  pinMode(r_enc,INPUT);   
+  pinMode(r_enc,INPUT_PULLUP);   
 	pinMode(l_mot,OUTPUT);
   pinMode(l_d1,OUTPUT);
   pinMode(l_d2,OUTPUT);
-  pinMode(l_enc,INPUT);
+  pinMode(l_enc,INPUT_PULLUP);
   set_direction(0);
 	
 	// SET TIMER REGISTERS 
@@ -104,6 +104,7 @@ void setup() {
 void loop() {
 	
 	
+  
   while(!cs_start){waste++;} 
 	
 //							1. Take inputs from serial monitor. 
@@ -112,6 +113,7 @@ void loop() {
 	if(Serial.available()>0){
 		v_lin =  Serial.parseInt();
 	}	
+  
 	
 	if((v_lin<0) || (v_lin>200)){
 		analogWrite(r_mot,200);

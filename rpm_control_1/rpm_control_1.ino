@@ -198,12 +198,18 @@ void loop() {
 		set_direction(3); //reverse motor
 		e_r = 0; //don't reverse the motors. 
 	}
+
+ if(e_l < 0 ){   
+    set_direction(3); //reverse motor
+    e_l = 0; //don't reverse the motors. 
+  }
 	else set_direction(0);
 	
 	u_r = kp*abs(e_r);
+  u_l = kp*abs(e_l);
 	
 	if(u_r > 255) u_r = 255; //saturation inputs
-	
+	if(u_l > 255) u_l = 255;
 	
 	
 	
@@ -211,13 +217,13 @@ void loop() {
 //							 
 	
   analogWrite(r_mot,u_r);
-  analogWrite(l_mot,0);
+  analogWrite(l_mot,u_l);
 
   
 // 6. MISCELLANEOUS 
 	
-	//Serial.print(u_r);
-  //Serial.print("  ");
+	Serial.print(u_r);
+  Serial.print("  ");
   Serial.println(r_rpm);
 
   
