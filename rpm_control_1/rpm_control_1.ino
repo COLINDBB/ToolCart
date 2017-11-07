@@ -95,11 +95,11 @@ void setup() {
   pinMode(r_mot,OUTPUT);
   pinMode(r_d1,OUTPUT);
   pinMode(r_d2,OUTPUT);
-  pinMode(r_enc,INPUT);   
+  pinMode(r_enc,INPUT_PULLUP);   
   pinMode(l_mot,OUTPUT);
   pinMode(l_d1,OUTPUT);
   pinMode(l_d2,OUTPUT);
-  pinMode(l_enc,INPUT);
+  pinMode(l_enc,INPUT_PULLUP);
   set_direction(0);
 
 	
