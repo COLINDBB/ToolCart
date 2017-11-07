@@ -1,6 +1,6 @@
 // AUTONOMOUS TOOLCART CAPSTONE PROJECT
 
-// 10/22/2017
+// October 2017
 
 // Objective:
 //							Accurately measure the angular velocity
@@ -8,25 +8,24 @@
 //							calculated rpm and rpm measured with 
 //							laser tachometer. 
 //
-// 							Approach 1: 
+// 							Approach : 
 //							Count the number of ticks within a certain 
-//							period of time. 
+//							period of time dt. 
 
 
 
 #define BIT(a) (1<<(a))
-
 const double max_volt = 0.5;
 
 
-// Pins for right motor
+// Right motor
 
 int r_mot = 10;
 int r_d1 = 8; 
 int r_d2 = 6;
 
 
-// Pins for left motor
+// Left motor
 
 int l_mot = 9; 
 int l_d1 = 4; 
@@ -42,20 +41,24 @@ int r_enc = 3; // pin INT1
 
 
 
-// CONTROL SYSTEM VARIABLES //
+// Control System Variables
 
-// cs_start is set to true in the timer compare function 
+// cs_start is triggered in the timer compare function 
 // (controls timing of control system). 
+
+// Timing: 
+
 
 volatile bool cs_start = false; 
 volatile int waste = 0;
-
-int ms_per_cmp = 16; //16ms per compare match interrupt generated (depends on clock)
+int ms_per_cmp = 16; //
 int n_cmp = 6; //
 double dt = ms_per_cmp*n_cmp*.001;
 int cmp_count = 0;
-double v_lin = 0;
-double ratio = 1;
+
+
+int PWM;
+double ratio;
 double r_rpm; 
 double l_rpm; 
 volatile int r_ticks = 0;
@@ -75,29 +78,27 @@ void setup() {
   set_direction(0);
 	
 	// SET TIMER REGISTERS 
-	// Combination of timer clock prescalar and output compare interrupt 
-	// at 250 ticks means that output compare interrupt vector happens 
-	// every 16ms. 
+	// With prescalar at 1024 and output compare interrupt at 250 ticks, 
+	// compare interrupt vector every 16ms. 
 	
   TCCR2A = 0;
   TCCR2B = 0;  
-	TCCR2B = BIT(CS22) | BIT(CS21) | BIT(CS20); // 1024 prescalar. Compare match at 250ticks = 16ms
-	TIMSK2 = BIT(OCIE2A); // enable compare match interrupt. (Output Compare Interrupt Enable)
-	OCR2A = 250; // match compare value
+	TCCR2B = BIT(CS22) | BIT(CS21) | BIT(CS20); 
+	TIMSK2 = BIT(OCIE2A); 
+	OCR2A = 250; 
   
 	
 	// Set external interrupt registers
-	
+	// enable interrupts on puns 2 and 3
+  
   EIMSK = 0;
-  EIMSK = BIT(INT0) | BIT(INT1); //enable interrupts on puns 2 and 3
+  EIMSK = BIT(INT0) | BIT(INT1); 
   EICRA = BIT(ISC11) | BIT(ISC10) | BIT(ISC01)| BIT(ISC00); 
 
-
+  PWM = 0;
   Serial.begin(9600);
 	Serial.setTimeout(1);
-	
-	
-	
+
  }
 
  
@@ -105,52 +106,69 @@ void loop() {
 	
 	
   while(!cs_start){waste++;} 
-	
-//							1. Take inputs from serial monitor. 
 
+  
+  // 1. Take inputs from serial monitor. 
 
 	if(Serial.available()>0){
-		v_lin =  Serial.parseInt();
+		PWM =  Serial.parseInt();
 	}	
-	
-	if((v_lin<0) || (v_lin>200)){
-		analogWrite(r_mot,200);
-		analogWrite(l_mot,200);
-	}
-	analogWrite(r_mot,v_lin);
-	analogWrite(l_mot,v_lin);
 
-	
-	
-	
+  
+  // 2. Write Motors
+
+  if(PWM < 0) PWM = 0;
+  if(PWM >255) PWM = 255;  
+
+  analogWrite(r_mot,PWM);
+  analogWrite(l_mot,PWM);
+
+  // 3. Calculate RPM
+ 
+  
   r_rpm = 60*(r_ticks/ticks_rev_r) / dt;
   l_rpm = 60*(l_ticks/ticks_rev_l) / dt;
-	r_ticks = 0; //reset tick counts
+	r_ticks = 0; 
 	l_ticks = 0;
+
+  // 4. Print
 	
+	Serial.print("Left wheel RPM: ");
 	Serial.print(l_rpm);
-	Serial.print(" ");
+  Serial.print(".    Left wheel RPM: ");
   Serial.println(r_rpm);
-	
+
+
+  // 5. Reset 
 	cs_start = false; 
 }
 
 
+
+
+
 ISR(INT0_vect){
+  
   l_ticks++;
+  
 }
+
 
 ISR(INT1_vect){
+  
   r_ticks++;
+  
 }
 
-
-
 ISR(TIMER2_COMPA_vect){
+  
 	cmp_count++;
+  
 	if(cmp_count==n_cmp){
+  
 		cs_start = true;
 		cmp_count = 0;
+    
 	}
 }
 
@@ -158,7 +176,7 @@ ISR(TIMER2_COMPA_vect){
 
 void set_direction(int dir){
 
-  // direction is what direction you want, d1 and d2 
+ 
   
   if(dir==0){                 //go straight
     digitalWrite(r_d1,LOW);
@@ -179,7 +197,7 @@ void set_direction(int dir){
     digitalWrite(l_d2,LOW);
    }
    else if(dir==3){
-    digitalWrite(r_d1,HIGH);
+    digitalWrite(r_d1,HIGH); // go backwards
     digitalWrite(r_d2,LOW);
     digitalWrite(l_d1,LOW);
     digitalWrite(l_d2,HIGH);

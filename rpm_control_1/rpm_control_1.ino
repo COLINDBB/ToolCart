@@ -1,8 +1,6 @@
-
-
 // AUTONOMOUS TOOLCART CAPSTONE PROJECT
 
-// 10/22/2017
+// November 2017
 
 // RPM Control System 
 
@@ -10,25 +8,24 @@
 // 							reaches specified value with minimum steady state 
 //							error. 
 
-// Approach 1: 	Count the number of ticks in a set amount of time. 
+// Approach : 	Get RPM.  
 //							Dt is determined by the clock setting (CSxx). 
-// 						
+// 						  Determine if proportional control is adequate. 
 
 
 
 #define BIT(a) (1<<(a))
-
 const double max_volt = 0.5;
 
 
-// Pins for right motor
+// Right Motor
 
 int r_mot = 10;
 int r_d1 = 8; 
 int r_d2 = 6;
 
 
-// Pins for left motor
+// Left Motor
 
 int l_mot = 9; 
 int l_d1 = 4; 
@@ -44,24 +41,38 @@ int r_enc = 3; // pin INT1
 
 
 
-// CONTROL SYSTEM VARIABLES //
+// CONTROL SYSTEM VARIABLES
+// In present configuration, 16ms per compare match interrupt generated. The frequency and period of one control loop iteration and is determined both by clock prescalar and how many overflows are required to trigger cs_start. 
 
-// cs_start is set to true in the timer compare function 
-// (controls timing of control system). 
 
-volatile bool cs_start = false; 
+// Timing: 
+
+volatile bool cs_start = false;  
 volatile int waste = 0;
+int ms_per_cmp = 16; 
 
-int ms_per_cmp = 16; //16ms per compare match interrupt generated (depends on clock)
-int n_cmp = 6; //
+// number of compare matches before cs_start is triggered
+
+int n_cmp = 6;
+int cmp_count = 0;  
+
+
+// Period of one control loop iteration = dt
+
 double dt = ms_per_cmp*n_cmp*.001;
-int cmp_count = 0;
 
-double v_lin = 0;
-double ratio = 1;
 
-int e_r,u_r,e_l,u_l; //error and command control signal, respectively
-double kp = 2; //proportional control gain
+// Input, error and controller gains
+
+double v_lin;
+double input_r_rpm;
+double input_l_rpm;
+double ratio;
+int e_r,u_r,e_l,u_l; //error and control signals
+double kp; //proportional term gain
+
+
+// Feedback variables
 
 double r_rpm; 
 double l_rpm; 
@@ -69,65 +80,60 @@ volatile int r_ticks = 0;
 volatile int l_ticks = 0;
 
 
-// TESTING VARIABLES 
- 	int delay_s;
-	int target;
-	int iter;
-	int targit;
+// Testing variables
+
+int delay_s;
+int target;
+int iter;
+int targit;
+
 
 
 void setup() {
   
-	// Configure hardware pins. 
-	// to do: conceal this in function  
-	
+	// Configure pins.   
   pinMode(r_mot,OUTPUT);
   pinMode(r_d1,OUTPUT);
   pinMode(r_d2,OUTPUT);
   pinMode(r_enc,INPUT);   
-	pinMode(l_mot,OUTPUT);
+  pinMode(l_mot,OUTPUT);
   pinMode(l_d1,OUTPUT);
   pinMode(l_d2,OUTPUT);
   pinMode(l_enc,INPUT);
-
   set_direction(0);
 
 	
 	// SET TIMER REGISTERS 
 	
-	// Combination of timer clock prescalar and output compare interrupt 
-	// at 250 ticks means that output compare interrupt vector happens 
-	// every 16ms. 
-	
+	// With 1024 prescalar, compare match at 250ticks = 16ms. 
+ 
   TCCR2A = 0;
   TCCR2B = 0;  
-	TCCR2B = BIT(CS22) | BIT(CS21) | BIT(CS20); // 1024 prescalar. Compare match at 250ticks = 16ms
-	TIMSK2 = BIT(OCIE2A); // enable compare match interrupt. (Output Compare Interrupt Enable)
-	OCR2A = 250; // match compare value
+	TCCR2B = BIT(CS22) | BIT(CS21) | BIT(CS20); 
+	TIMSK2 = BIT(OCIE2A); //enable interrupt
+	OCR2A = 250; 
   
 	
 	// Set external interrupt registers
-	
+	// enable interrupts on puns 2 and 3
+  
   EIMSK = 0;
-  EIMSK = BIT(INT0) | BIT(INT1); //enable interrupts on puns 2 and 3
+  EIMSK = BIT(INT0) | BIT(INT1); 
   EICRA = BIT(ISC11) | BIT(ISC10) | BIT(ISC01)| BIT(ISC00); 
 
+
 	// To do: Incorporate Serial Communication	
+  
   Serial.begin(9600);
 	
 	
-	
-	
-	
-	
-	// Test variables. 
+	// Test variables: 
+ 
 	kp = 3;
-	n_cmp = 1;
-	dt = ms_per_cmp*n_cmp*.001;
-	delay_s = 4;
-	target = 150;
-	targit = delay_s/dt;
-	iter = 0;
+
+
+
+
 	
  }
 
@@ -138,80 +144,79 @@ void loop() {
   while(!cs_start){waste++;} 
   
 
-// CONTROL LOOP BEGINS HERE (EVERY dt = n_cmp*ms_per_cmp MILLISECONDS)						
+// CONTROL LOOP BEGINS HERE (EVERY dt = n_cmp*ms_per_cmp ms)						
 	
-
-
 	
 // 1. RECEIVE COMMAND (INPUT)
-// 							todo: add dan's code for joystick. 
-// 							in future: commands from computer. 
-// 							incorporate kinematic equations (rpm_r and l based on R and Vlin)
-//							  
-//
-//							a. Hard-coded step inputs. kicks in after "targit" seconds
-	iter++; 
-	if(iter == targit) v_lin = target; 
-	//if(iter == 4*targit) v_lin = target*2;
-	//if(iter == 8*targit) v_lin = target*3;
 
+
+//  todo: add dan's code for joystick. 
+// 	todo: receive commands from computer. 
+// 	todo: incorporate kinematic equations (rpm_r and l based on R and Vlin)
+
+  //  a. Inputs from the serial monitor. 
+
+  /*
+  if(Serial.available()){
+	  v_lin = Serial.parseInt();
+  }	
+  */
+
+
+  //  b. Constant inputs. 	
+
+  ratio = 1;  // Left and right motors go at same speed
+  v_lin = 50;  // Desired linear velocity. 
+
+  input_r_rpm = v_lin;
+  input_l_rpm = v_lin;
 	
-//							b. Inputs from the serial monitor. 
 
-	//if(Serial.available()){
-	//	v_lin = Serial.parseInt();
-	//}	
-
-
-//							c. Constant inputs. 	
-
-	//ratio = 1;  // Left and right motors go at same speed
-	//v_lin = 250;  // Desired linear velocity. 
-	//r_rpm_target = ; 
-	//l_rpm_target = ;
   
-	
-	
-	
 // 2. READ SENSOR (OUTPUT)
 
   r_rpm = 60*(r_ticks/ticks_rev_r) / dt;
   l_rpm = 60*(l_ticks/ticks_rev_l) / dt;
 	r_ticks = 0; //reset tick counts
 	l_ticks = 0;
-	
-// 3. COMPUTE ERROR SIGNAL (E = INPUT - OUTPUT)
 
-	e_r = (v_lin - r_rpm);
-	e_l = (v_lin - l_rpm);
-	
-	
-	
-// 4. COMPUTE CONTROL SIGNAL (U)
-//							todo: saturate the inputs
-//							todo: make sure negatives dont go through
-//							but incorporate in future
-//							todo: determine the controller (lol) 
-//							current controller = proportional control (kp);
 
-  if(e_r < 0 ){		
-		set_direction(3); //reverse motor
-		e_r = 0; //don't reverse the motors. 
-	}
-	else set_direction(0);
+  
+//  3. COMPUTE ERROR SIGNAL (E = INPUT - OUTPUT)
+
+	e_r = (input_r_rpm - r_rpm);
+	e_l = (input_l_rpm - l_rpm);
 	
+	
+	
+//  4. COMPUTE CONTROL SIGNAL (U)
+//  
+//  todo: determine the controller, write data to files. 
+//  current controller = proportional control (kp);
+//  If error is negative, reverse motor direction
+//  using set_x_mot() 1 = forward, 0 = back 
+  
+  if(e_r < 0 ) set_r_mot(0); 
+  else set_r_mot(1);
+
+  if(e_l < 0) set_l_mot(0); 
+  else set_l_mot(1);
+
 	u_r = kp*abs(e_r);
-	
-	if(u_r > 255) u_r = 255; //saturation inputs
-	
+	u_l = kp*abs(e_l);
+
+  // Saturate Inputs 
+  
+	if(u_r > 255) u_r = 255; 
+  if(u_l > 255) u_l = 255; 
 	
 	
 	
 // 5. WRITE ACTUATORS WITH CONTROL SIGNAL
-//							 
-	
+						 
   analogWrite(r_mot,u_r);
-  analogWrite(l_mot,0);
+  analogWrite(l_mot,u_l);
+
 
   
 // 6. MISCELLANEOUS 
@@ -220,22 +225,14 @@ void loop() {
   //Serial.print("  ");
   Serial.println(r_rpm);
 
-  
-  
+
 	cs_start = false; 
 }
 
 
 
 
-
-
-
-
-
-
-
-
+// INTERRUPT FUNCTIONS
 
 ISR(INT0_vect){
   l_ticks++;
@@ -256,7 +253,36 @@ ISR(TIMER2_COMPA_vect){
 }
 
 
+// MOTOR DIRECTION FUNCTIONS
 
+void set_r_mot(int dir){
+  
+  if(dir==1){
+    
+    // go forward
+    digitalWrite(r_d1,LOW);
+    digitalWrite(r_d2,HIGH);
+    
+  }else{
+    
+    // go backward
+    digitalWrite(r_d1,HIGH);
+    digitalWrite(r_d2,LOW);
+    
+  }
+}
+
+void set_l_mot(int dir){
+
+  if(dir==1){
+    digitalWrite(l_d1,HIGH);
+    digitalWrite(l_d2,LOW);
+  }else{
+    digitalWrite(l_d1,LOW);
+    digitalWrite(l_d2,HIGH);
+  }
+  
+}
 void set_direction(int dir){
 
   // direction is what direction you want, d1 and d2 
@@ -267,14 +293,14 @@ void set_direction(int dir){
     digitalWrite(l_d1,HIGH);
     digitalWrite(l_d2,LOW);
   }
-  else if(dir==1){            // turn right on the spot
+  else if(dir==1){            // turn right 
     digitalWrite(r_d1,LOW);
     digitalWrite(r_d2,HIGH);
     digitalWrite(l_d1,LOW);
     digitalWrite(l_d2,HIGH);
   }
    else if(dir==2){
-    digitalWrite(r_d1,HIGH); //turn left on the spot
+    digitalWrite(r_d1,HIGH); //turn left 
     digitalWrite(r_d2,LOW);
     digitalWrite(l_d1,HIGH);
     digitalWrite(l_d2,LOW);
